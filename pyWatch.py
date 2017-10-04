@@ -12,13 +12,14 @@ class PunchDatEvent(FileSystemEventHandler):
 
     # This method is what will be threaded, and will output a count when the
     # thread is active.
-    def tick_tock(self):
-        tockCount = 0
+    def tick_tock(self, timestamp):
+        # Leaving off here, need to do the time maths to output elapsed time.
+        #startTime = time.strptime(timestamp[0:15], '%Y%m%dT%H%M%S')
         while(self.running == True):
-            logging.info("Tick Tock %s", tockCount)
-            tockCount = tockCount + 1
+            logging.info("Start Time: %s", timestamp)
             time.sleep(.01)
 
+    # Borrowed and modified from Punch.py
     def get_last_punch_rec(self, src_path):
         lastrec = []
         try:
@@ -35,17 +36,6 @@ class PunchDatEvent(FileSystemEventHandler):
 
         return lastrec
 
-    def last_punch_line_complete(self, src_path):
-        lastrec = self.get_last_punch_rec(src_path)
-        if len(lastrec) == 0:
-            isComplete = True
-        elif len(lastrec) == 3:
-            isComplete = True
-        else:
-            isComplete = False
-
-        return isComplete
-
     # Overriding the method provided in FileSystemEventHandler to handle the
     # file modified event punch.dat.
     def on_modified(self, event):
@@ -56,10 +46,11 @@ class PunchDatEvent(FileSystemEventHandler):
 
         # Check completion of the last punch task, and trigger the thread if its
         # incomplete.
-        if not self.last_punch_line_complete(event.src_path):
+        lastrec = self.get_last_punch_rec(event.src_path)
+        if(len(lastrec) == 2):
             self.running = True
             # Kick off another thread with the timer.
-            tickTockThread = Thread(target=self.tick_tock, args=())
+            tickTockThread = Thread(target=self.tick_tock, args=(lastrec[1],))
             tickTockThread.start()
         else:
             self.running = False
