@@ -18,6 +18,8 @@ class PunchDatEvent(FileSystemEventHandler):
             tockCount = tockCount + 1
             time.sleep(.01)
 
+    # Overriding the method provided in FileSystemEventHandler to handle the
+    # file modified event punch.dat.
     def on_modified(self, event):
         # Debug to see what values we get in event.
         #logging.info("Triggered event of type %s.", event.event_type)
