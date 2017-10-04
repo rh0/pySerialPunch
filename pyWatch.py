@@ -1,4 +1,5 @@
 import sys
+import os
 import time
 import logging
 from threading import Thread
@@ -18,6 +19,33 @@ class PunchDatEvent(FileSystemEventHandler):
             tockCount = tockCount + 1
             time.sleep(.01)
 
+    def get_last_punch_rec(self, src_path):
+        lastrec = []
+        try:
+            self.punchFile = open(src_path, 'r')
+            lines = self.punchFile.readlines()
+            if( len(lines) > 0):
+                lastline = (lines[len(lines)-1]).strip()
+                lastrec = lastline.split('\t')
+            else:
+                lastrec = []
+            self.punchFile.close()
+        except IOError:
+            lastrec = []
+
+        return lastrec
+
+    def last_punch_line_complete(self, src_path):
+        lastrec = self.get_last_punch_rec(src_path)
+        if len(lastrec) == 0:
+            isComplete = True
+        elif len(lastrec) == 3:
+            isComplete = True
+        else:
+            isComplete = False
+
+        return isComplete
+
     # Overriding the method provided in FileSystemEventHandler to handle the
     # file modified event punch.dat.
     def on_modified(self, event):
@@ -26,8 +54,9 @@ class PunchDatEvent(FileSystemEventHandler):
         #logging.info("Is this a directory? %s", event.is_directory)
         #logging.info("%s, was modified.", event.src_path)
 
-        # Toggle the simple running flag on change.
-        if(self.running == False):
+        # Check completion of the last punch task, and trigger the thread if its
+        # incomplete.
+        if not self.last_punch_line_complete(event.src_path):
             self.running = True
             # Kick off another thread with the timer.
             tickTockThread = Thread(target=self.tick_tock, args=())
