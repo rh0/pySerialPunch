@@ -1,23 +1,81 @@
 import sys
 import os
+import serial
 import time
 import logging
 from threading import Thread
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
+# Make this more reasonable config.
+path = '/home/rho/.todo/data'
+punchDatFilename = 'punch.dat'
+
+# A few of the commands for serLCD
+COMMAND     = 0xFE
+CLEAR       = 0x01
+BLINK_ON    = 0x0D
+BLINK_OFF   = 0x0C
+UL_ON       = 0x0E
+UL_OFF      = 0x0C
+SET_CUR_L1  = 0x80
+SET_CUR_L2  = 0xC0
+
+# Setup serial vars
+usbSerialPath = '/dev/ttyUSB0'
+usbSerialBaud = 9600
+
 class PunchDatEvent(FileSystemEventHandler):
     # Flag to stop and start the thread.
     running = False
 
+    # Prep the serial connection.
+    serLCD = serial.Serial()
+    serLCD.baudrate = usbSerialBaud
+    serLCD.port = usbSerialPath
+
+    # Run a serial command.
+    def serCmd(self, bits):
+        self.serLCD.write(bytes([COMMAND]))
+        self.serLCD.write(bytes([bits]))
+
+    # Initialize a serial connection.
+    def serInit(self):
+        self.serLCD.open()
+        if self.serLCD.is_open:
+            logging.info("Serial comms open.")
+            self.serCmd(CLEAR)
+            self.serCmd(BLINK_OFF)
+        else:
+            logging.info("Unable to open serial comms.")
+
+    # If the serial port is open close it.
+    def serClose(self):
+        if self.serLCD.is_open:
+            self.serLCD.close()
+            logging.info("Serial comms closed.")
+
+
+    # Output a string to serial.
+    def serWriteString(self, serOutStr):
+        for c in serOutStr:
+            self.serLCD.write(bytes([ord(c)]))
+
     # This method is what will be threaded, and will output a count when the
     # thread is active.
     def tick_tock(self, timestamp):
-        # Leaving off here, need to do the time maths to output elapsed time.
-        #startTime = time.strptime(timestamp[0:15], '%Y%m%dT%H%M%S')
-        while(self.running == True):
-            logging.info("Start Time: %s", timestamp)
-            time.sleep(.01)
+        self.serInit()
+        if self.serLCD.is_open:
+            # Leaving off here, need to do the time maths to output elapsed time.
+            #startTime = time.strptime(timestamp[0:15], '%Y%m%dT%H%M%S')
+            while(self.running == True and self.serLCD.is_open):
+                #logging.info("Start Time: %s", timestamp)
+                #time.sleep(.01)
+                self.serCmd(SET_CUR_L2);
+                self.serWriteString(timestamp)
+                time.sleep(.1)
+        # We've broken out of the while loop so close serial communications.
+        self.serClose()
 
     # Borrowed and modified from Punch.py
     def get_last_punch_rec(self, src_path):
@@ -62,20 +120,18 @@ if __name__ == "__main__":
                         format='%(asctime)s.%(msecs)03d - %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
 
-    # Make this more reasonable config.
-    path = '/home/rho/.todo/data'
-    punchDatFilename = 'punch.dat'
-
     # Instantiate our event handler and observer and kick off the observer thread.
     event_handler = PunchDatEvent()
     observer = Observer()
     observer.schedule(event_handler, path)
+    logging.info("Starting punch observer thread.")
     observer.start()
     # A bit of observer delay, and an interrupt for ^C
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
+        event_handler.serClose()
         observer.stop()
-        logging.info("Observer thread terminated. Goodbye.")
+        logging.info("Punch observer thread terminated. Goodbye.")
     observer.join()
