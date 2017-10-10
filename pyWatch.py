@@ -5,7 +5,8 @@ from threading import Thread
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
-# Make this more reasonable config.
+### @TODO Make this more reasonable config. ###
+# Location and name of the punch data file.
 path = '/home/rho/.todo/data'
 punchDatFilename = 'punch.dat'
 
@@ -23,6 +24,7 @@ SET_CUR_L2  = 0xC0
 usbSerialPath = '/dev/ttyUSB0'
 usbSerialBaud = 9600
 
+# Extending FileSystemEventHandler
 class PunchDatEvent(FileSystemEventHandler):
     # Flag to stop and start the thread.
     running = False
