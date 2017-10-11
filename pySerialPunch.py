@@ -41,7 +41,8 @@ class PunchDatEvent(FileSystemEventHandler):
 
     # Initialize a serial connection.
     def serInit(self):
-        self.serLCD.open()
+        if not self.serLCD.is_open:
+            self.serLCD.open()
         if self.serLCD.is_open:
             logging.info("Serial comms open.")
             self.serCmd(CLEAR)
@@ -52,28 +53,40 @@ class PunchDatEvent(FileSystemEventHandler):
     # If the serial port is open close it.
     def serClose(self):
         if self.serLCD.is_open:
+            self.running = False
+            self.serWriteNoTask()
             self.serLCD.close()
             logging.info("Serial comms closed.")
 
-
     # Output a string to serial.
     def serWriteString(self, serOutStr):
-        for c in serOutStr:
+        for c in str(serOutStr):
             self.serLCD.write(bytes([ord(c)]))
+
+    def serWriteNoTask(self):
+        self.serCmd(CLEAR)
+        self.serCmd(0x81)
+        self.serWriteString("No Active Task")
+
+    def secondsToTime(self, sec):
+        m, s = divmod(sec, 60)
+        h, m = divmod(m, 60)
+        return "%d:%02d:%02d" % (h, m, s)
+
 
     # This method is what will be threaded, and will output a count when the
     # thread is active.
-    def tick_tock(self, timestamp):
+    def tick_tock(self, lastreq):
         self.serInit()
         if self.serLCD.is_open:
-            # Leaving off here, need to do the time maths to output elapsed time.
-            #startTime = time.strptime(timestamp[0:15], '%Y%m%dT%H%M%S')
+            self.serCmd(SET_CUR_L1)
+            self.serWriteString(lastreq[0])
+
+            timestamp = lastreq[1]
+            startTime = time.mktime(time.strptime(timestamp[0:15], '%Y%m%dT%H%M%S'))
             while(self.running == True and self.serLCD.is_open):
-                #logging.info("Start Time: %s", timestamp)
-                #time.sleep(.01)
-                self.serCmd(SET_CUR_L2);
-                self.serWriteString(timestamp)
-                time.sleep(.1)
+                self.serCmd(SET_CUR_L2)
+                self.serWriteString(self.secondsToTime(int(round(time.time() - startTime, 0))))
         # We've broken out of the while loop so close serial communications.
         self.serClose()
 
@@ -97,6 +110,8 @@ class PunchDatEvent(FileSystemEventHandler):
     # Overriding the method provided in FileSystemEventHandler to handle the
     # file modified event punch.dat.
     def on_modified(self, event):
+        self.running = False
+        time.sleep(.5)
         # Debug to see what values we get in event.
         #logging.info("Triggered event of type %s.", event.event_type)
         #logging.info("Is this a directory? %s", event.is_directory)
@@ -108,7 +123,7 @@ class PunchDatEvent(FileSystemEventHandler):
         if(len(lastrec) == 2):
             self.running = True
             # Kick off another thread with the timer.
-            tickTockThread = Thread(target=self.tick_tock, args=(lastrec[1],))
+            tickTockThread = Thread(target=self.tick_tock, args=(lastrec,))
             tickTockThread.start()
         else:
             self.running = False
