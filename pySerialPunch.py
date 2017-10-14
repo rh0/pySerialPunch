@@ -6,16 +6,10 @@ from threading import Thread
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
+# Load config.
+# @TODO add some checks that this is filled out and exists
 with open("config.yml", 'r') as ymlfile:
     serCfg = yaml.load(ymlfile)
-
-print(serCfg['serial']['path'])
-print(serCfg['punch'])
-
-### @TODO Make this more reasonable config. ###
-# Location and name of the punch data file.
-path = '/home/rho/.todo/data'
-punchDatFilename = 'punch.dat'
 
 # A few of the commands for serLCD
 COMMAND     = 0xFE
@@ -27,10 +21,6 @@ UL_OFF      = 0x0C
 SET_CUR_L1  = 0x80
 SET_CUR_L2  = 0xC0
 
-# Setup serial vars
-usbSerialPath = '/dev/ttyUSB0'
-usbSerialBaud = 9600
-
 # Extending FileSystemEventHandler
 class PunchDatEvent(FileSystemEventHandler):
     # Flag to stop and start the thread.
@@ -38,8 +28,8 @@ class PunchDatEvent(FileSystemEventHandler):
 
     # Prep the serial connection.
     serLCD = serial.Serial()
-    serLCD.baudrate = usbSerialBaud
-    serLCD.port = usbSerialPath
+    serLCD.baudrate = serCfg['serial']['baud']
+    serLCD.port = serCfg['serial']['path']
 
     # Run a serial command.
     def serCmd(self, bits):
@@ -145,7 +135,7 @@ if __name__ == "__main__":
     # Instantiate our event handler and observer and kick off the observer thread.
     event_handler = PunchDatEvent()
     observer = Observer()
-    observer.schedule(event_handler, path)
+    observer.schedule(event_handler, serCfg['punch']['path'])
     logging.info("Starting punch observer thread.")
     observer.start()
     # A bit of observer delay, and an interrupt for ^C
