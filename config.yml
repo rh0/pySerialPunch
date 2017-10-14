@@ -1,5 +1,5 @@
 punch:
-    path: /home/rho/.todo/data
+    path: /path/to/punch/file
     filename: punch.dat
 serial:
     path: /dev/ttyUSB0
