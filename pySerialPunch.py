@@ -109,21 +109,18 @@ class PunchDatEvent(FileSystemEventHandler):
     def on_modified(self, event):
         self.running = False
         time.sleep(.5)
-        # Debug to see what values we get in event.
-        #logging.info("Triggered event of type %s.", event.event_type)
-        #logging.info("Is this a directory? %s", event.is_directory)
-        #logging.info("%s, was modified.", event.src_path)
 
-        # Check completion of the last punch task, and trigger the thread if its
-        # incomplete.
-        lastrec = self.get_last_punch_rec(event.src_path)
-        if(len(lastrec) == 2):
-            self.running = True
-            # Kick off another thread with the timer.
-            tickTockThread = Thread(target=self.tick_tock, args=(lastrec,))
-            tickTockThread.start()
-        else:
-            self.running = False
+        if not event.is_directory and (event.src_path == serCfg['punch']['path'] + '/' +  serCfg['punch']['filename']):
+            # Check completion of the last punch task, and trigger the thread if its
+            # incomplete.
+            lastrec = self.get_last_punch_rec(event.src_path)
+            if(len(lastrec) == 2):
+                self.running = True
+                # Kick off another thread with the timer.
+                tickTockThread = Thread(target=self.tick_tock, args=(lastrec,))
+                tickTockThread.start()
+            else:
+                self.running = False
 
 
 if __name__ == "__main__":
