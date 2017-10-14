@@ -1,0 +1,6 @@
+punch:
+    path: /home/rho/.todo/data
+    filename: punch.dat
+serial:
+    path: /dev/ttyUSB0
+    baud: 9600

@@ -1,9 +1,16 @@
 import serial
 import time
 import logging
+import yaml
 from threading import Thread
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+
+with open("config.yml", 'r') as ymlfile:
+    serCfg = yaml.load(ymlfile)
+
+print(serCfg['serial']['path'])
+print(serCfg['punch'])
 
 ### @TODO Make this more reasonable config. ###
 # Location and name of the punch data file.
