@@ -25,6 +25,7 @@ SET_CUR_L2  = 0xC0
 class PunchDatEvent(FileSystemEventHandler):
     # Flag to stop and start the thread.
     running = False
+    lastrec = []
 
     # Prep the serial connection.
     serLCD = serial.Serial()
@@ -50,7 +51,6 @@ class PunchDatEvent(FileSystemEventHandler):
     # If the serial port is open close it.
     def serClose(self):
         if self.serLCD.is_open:
-            self.running = False
             self.serWriteNoTask()
             self.serLCD.close()
             logging.info("Serial comms closed.")
@@ -70,21 +70,33 @@ class PunchDatEvent(FileSystemEventHandler):
         h, m = divmod(m, 60)
         return "%d:%02d:%02d" % (h, m, s)
 
+    def tick_tock_stop(self):
+        self.lastrec = []
+        self.running = False
 
     # This method is what will be threaded, and will output a count when the
     # thread is active.
-    def tick_tock(self, lastreq):
-        self.serInit()
-        if self.serLCD.is_open:
-            self.serCmd(SET_CUR_L1)
-            self.serWriteString(lastreq[0])
+    def tick_tock(self):
+        self.running = True
+        while self.running == True:
+            if len(self.lastrec) == 2:
+                workingrec = self.lastrec
+                if not self.serLCD.is_open:
+                    self.serInit()
+                if self.serLCD.is_open:
+                    self.serCmd(CLEAR)
+                    self.serCmd(SET_CUR_L1)
+                    self.serWriteString(self.lastrec[0])
 
-            timestamp = lastreq[1]
-            startTime = time.mktime(time.strptime(timestamp[0:15], '%Y%m%dT%H%M%S'))
-            while(self.running == True and self.serLCD.is_open):
-                self.serCmd(SET_CUR_L2)
-                self.serWriteString(self.secondsToTime(int(round(time.time() - startTime, 0))))
-        # We've broken out of the while loop so close serial communications.
+                    timestamp = self.lastrec[1]
+                    startTime = time.mktime(time.strptime(timestamp[0:15], '%Y%m%dT%H%M%S'))
+                    while workingrec == self.lastrec and self.serLCD.is_open:
+                        self.serCmd(SET_CUR_L2)
+                        self.serWriteString(self.secondsToTime(int(round(time.time() - startTime, 0))))
+            else:
+                # We've broken out of the while loop so close serial communications.
+                self.serClose()
+        logging.info("leaving TickTock")
         self.serClose()
 
     # Borrowed and modified from Punch.py
@@ -107,20 +119,14 @@ class PunchDatEvent(FileSystemEventHandler):
     # Overriding the method provided in FileSystemEventHandler to handle the
     # file modified event punch.dat.
     def on_modified(self, event):
-        self.running = False
-        time.sleep(.5)
+        self.lastrec = []
 
         if not event.is_directory and (event.src_path == serCfg['punch']['path'] + '/' +  serCfg['punch']['filename']):
             # Check completion of the last punch task, and trigger the thread if its
             # incomplete.
-            lastrec = self.get_last_punch_rec(event.src_path)
-            if(len(lastrec) == 2):
-                self.running = True
-                # Kick off another thread with the timer.
-                tickTockThread = Thread(target=self.tick_tock, args=(lastrec,))
-                tickTockThread.start()
-            else:
-                self.running = False
+            self.lastrec = self.get_last_punch_rec(event.src_path)
+            if(len(self.lastrec) != 2):
+                self.lastrec = []
 
 
 if __name__ == "__main__":
@@ -136,11 +142,14 @@ if __name__ == "__main__":
     logging.info("Starting punch observer thread.")
     observer.start()
     # A bit of observer delay, and an interrupt for ^C
+    # Kick off another thread with the timer.
+    tickTockThread = Thread(target=event_handler.tick_tock)
+    tickTockThread.start()
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        event_handler.serClose()
+        event_handler.tick_tock_stop()
         observer.stop()
         logging.info("Punch observer thread terminated. Goodbye.")
     observer.join()
