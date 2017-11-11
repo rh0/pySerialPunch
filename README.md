@@ -4,7 +4,7 @@ Proof of concept to output time tracking data from the [punch](https://github.co
 ## Library Requirements
 [Watchdog](https://github.com/gorakhargosh/watchdog)
 
-## Config.yml
+## config.yml
 + Add the path to your punch.dat file
 + If your punch.dat file is named something else, adjust accordingly
 + If your cp2104 appears at a location other than `/dev/ttyUSB0` adjust serial path
